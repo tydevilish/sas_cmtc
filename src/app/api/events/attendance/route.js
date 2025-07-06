@@ -102,7 +102,6 @@ export async function GET(request) {
         const { searchParams } = new URL(request.url)
         const eventId = searchParams.get("eventId")
         const level = searchParams.get("level")
-        const track = searchParams.get("track")
         const search = searchParams.get("search")
 
         if (!eventId) {
@@ -112,30 +111,41 @@ export async function GET(request) {
             )
         }
 
+        // ดึงข้อมูลกิจกรรมเพื่อตรวจสอบระดับชั้นที่เลือก
+        const event = await prisma.event.findUnique({
+            where: { id: eventId }
+        })
+
+        if (!event) {
+            return NextResponse.json(
+                { message: "ไม่พบกิจกรรมที่ต้องการ" },
+                { status: 404 }
+            )
+        }
+
         const where = {
             eventId
         }
 
-        if (level || track) {
-            where.student = {}
-
-            if (level) {
-                where.student.level = level
-            }
-
-            if (track) {
-                where.student.track = track
+        // ถ้าไม่ได้เลือก "all" ให้กรองตามระดับชั้นที่เลือกในกิจกรรม
+        if (!event.levels.includes("all")) {
+            where.student = {
+                level: { in: event.levels }
             }
         }
 
-        if (search) {
+        // เพิ่มเงื่อนไขการค้นหาเพิ่มเติม
+        if (level || search) {
             where.student = {
                 ...where.student,
-                OR: [
-                    { studentId: { contains: search } },
-                    { firstName: { contains: search } },
-                    { lastName: { contains: search } }
-                ]
+                ...(level && { level }),
+                ...(search && {
+                    OR: [
+                        { studentId: { contains: search } },
+                        { firstName: { contains: search } },
+                        { lastName: { contains: search } }
+                    ]
+                })
             }
         }
 

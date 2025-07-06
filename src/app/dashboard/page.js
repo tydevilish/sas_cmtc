@@ -12,80 +12,50 @@ export default function Dashboard() {
     const router = useRouter()
 
     useEffect(() => {
-        async function fetchData() {
+        async function checkAuth() {
             try {
-                const [resUser, resStats] = await Promise.all([
-                    fetch("/api/auth/me", {
-                        method: "GET",
-                        credentials: "include",
-                    }),
-                    fetch("/api/dashboard", {
-                        method: "GET",
-                        credentials: "include",
-                    })
-                ])
+                const res = await fetch("/api/auth/me", {
+                    method: "GET",
+                    credentials: "include",
+                })
 
-                if (!resUser.ok) {
+                if (!res.ok) {
                     return router.push("/login")
                 }
 
-                const [userData, statsData] = await Promise.all([
-                    resUser.json(),
-                    resStats.json()
-                ])
-
-                setUser(userData.user)
-                setStats(statsData.stats)
+                const data = await res.json()
+                setUser(data.user)
             } catch (err) {
                 router.push("/login")
+            }
+        }
+        checkAuth()
+    }, [])
+
+    useEffect(() => {
+        async function fetchStats() {
+            if (!user) return
+            try {
+                const res = await fetch("/api/dashboard", {
+                    method: "GET",
+                    credentials: "include",
+                })
+
+                if (res.ok) {
+                    const data = await res.json()
+                    setStats(data)
+                }
+            } catch (err) {
+                console.error("Error fetching stats:", err)
             } finally {
                 setIsLoading(false)
             }
         }
 
-        fetchData()
-    }, [])
+        fetchStats()
+    }, [user])
 
-    const menuItems = [
-        {
-            id: 'events',
-            title: 'จัดการกิจกรรม',
-            icon: '/event.svg',
-            href: '/events',
-            description: 'จัดการข้อมูลกิจกรรมต่างๆ',
-            stats: stats ? [
-                { label: 'กิจกรรมทั้งหมด', value: stats.activities.total },
-                { label: 'กำลังดำเนินการ', value: stats.activities.active },
-                { label: 'กำลังจะมาถึง', value: stats.activities.upcoming }
-            ] : []
-        },
-        {
-            id: 'students',
-            title: 'จัดการนักศึกษา',
-            icon: '/student.svg',
-            href: '/students',
-            description: 'จัดการข้อมูลนักเรียนนักศึกษา',
-            stats: stats ? [
-                { label: 'นักศึกษาทั้งหมด', value: stats.students.total },
-                { label: 'เข้าร่วมกิจกรรม', value: stats.students.attending },
-                { label: 'ขาดกิจกรรม', value: stats.students.absent }
-            ] : []
-        },
-        {
-            id: 'users',
-            title: 'จัดการผู้ใช้ระบบ',
-            icon: '/user.svg',
-            href: '/users',
-            description: 'จัดการผู้ใช้งานระบบ',
-            stats: stats ? [
-                { label: 'ผู้ใช้ทั้งหมด', value: stats.users.total },
-                { label: 'ผู้ดูแลระบบ', value: stats.users.admin },
-                { label: 'อาจารย์', value: stats.users.teacher }
-            ] : []
-        }
-    ]
-
-    if (!user || !stats) {
+    if (!user || isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500"></div>
@@ -94,235 +64,228 @@ export default function Dashboard() {
     }
 
     return (
-        <main className="flex-grow pt-16">
-            <div className="min-h-screen bg-gray-50">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                    {/* Welcome Section */}
-                    <div className="bg-white rounded-2xl shadow-sm p-6 mb-8">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h1 className="text-2xl font-bold text-gray-900">
-                                    ยินดีต้อนรับ, {user.name || user.username}
-                                </h1>
-                                <p className="mt-1 text-gray-500">
-                                    ระบบจัดการการเข้าร่วมกิจกรรมนักศึกษา
-                                </p>
-                            </div>
-                            <div className="hidden sm:block">
+        <main className="flex-grow pt-16 bg-gray-50 min-h-screen">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Header */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                            <div className="bg-red-50 p-2 rounded-xl">
                                 <Image
-                                    src="/images/logo.png"
-                                    alt="Logo"
-                                    width={120}
-                                    height={46}
-                                    priority
+                                    src="/dashboard.svg"
+                                    alt="Dashboard"
+                                    width={32}
+                                    height={32}
+                                    className="opacity-75"
                                 />
                             </div>
-                        </div>
+                            แผงควบคุม
+                        </h1>
+                        <p className="mt-1 text-gray-500">ภาพรวมของระบบเช็คชื่อกิจกรรมและชมรม</p>
                     </div>
-
-                    {/* Quick Stats */}
-                    <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-                        <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl p-6 text-white">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-red-100">กิจกรรมทั้งหมด</p>
-                                    <h3 className="text-3xl font-bold mt-1">{stats.activities.total}</h3>
-                                </div>
-                                <div className="bg-white/20 rounded-lg p-3">
-                                    <Image
-                                        src="/event.svg"
-                                        alt="Activities"
-                                        width={24}
-                                        height={24}
-                                        className="opacity-90"
-                                    />
-                                </div>
-                            </div>
-                            <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
-                                <div className="bg-white/10 rounded-lg p-2 text-center">
-                                    <p className="text-red-100">กำลังดำเนินการ</p>
-                                    <p className="text-xl font-semibold">{stats.activities.active}</p>
-                                </div>
-                                <div className="bg-white/10 rounded-lg p-2 text-center">
-                                    <p className="text-red-100">กำลังจะมาถึง</p>
-                                    <p className="text-xl font-semibold">{stats.activities.upcoming}</p>
-                                </div>
-                                <div className="bg-white/10 rounded-lg p-2 text-center">
-                                    <p className="text-red-100">เสร็จสิ้น</p>
-                                    <p className="text-xl font-semibold">{stats.activities.completed}</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-blue-100">นักศึกษาทั้งหมด</p>
-                                    <h3 className="text-3xl font-bold mt-1">{stats.students.total}</h3>
-                                </div>
-                                <div className="bg-white/20 rounded-lg p-3">
-                                    <Image
-                                        src="/student.svg"
-                                        alt="Students"
-                                        width={24}
-                                        height={24}
-                                        className="opacity-90"
-                                    />
-                                </div>
-                            </div>
-                            <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
-                                <div className="bg-white/10 rounded-lg p-2 text-center">
-                                    <p className="text-blue-100">มาเรียน</p>
-                                    <p className="text-xl font-semibold">{stats.students.attending}</p>
-                                </div>
-                                <div className="bg-white/10 rounded-lg p-2 text-center">
-                                    <p className="text-blue-100">มาสาย</p>
-                                    <p className="text-xl font-semibold">{stats.students.late}</p>
-                                </div>
-                                <div className="bg-white/10 rounded-lg p-2 text-center">
-                                    <p className="text-blue-100">ขาด</p>
-                                    <p className="text-xl font-semibold">{stats.students.absent}</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white col-span-2">
-                            <div className="flex items-center justify-between mb-4">
-                                <div>
-                                    <p className="text-green-100">สถิติการเข้าร่วมกิจกรรม</p>
-                                    <h3 className="text-3xl font-bold mt-1">
-                                        {((stats.students.attending / (stats.students.attending + stats.students.late + stats.students.absent)) * 100).toFixed(1)}%
-                                    </h3>
-                                </div>
-                                <div className="bg-white/20 rounded-lg p-3">
-                                    <svg className="w-6 h-6 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                    </svg>
-                                </div>
-                            </div>
-                            <div className="w-full bg-white/10 rounded-full h-2.5">
-                                <div 
-                                    className="bg-white h-2.5 rounded-full" 
-                                    style={{ 
-                                        width: `${(stats.students.attending / (stats.students.attending + stats.students.late + stats.students.absent)) * 100}%` 
-                                    }}
-                                ></div>
-                            </div>
-                            <div className="mt-4 flex justify-between text-sm">
-                                <span className="text-green-100">มาเรียน: {stats.students.attending} คน</span>
-                                <span className="text-green-100">มาสาย: {stats.students.late} คน</span>
-                                <span className="text-green-100">ขาด: {stats.students.absent} คน</span>
-                            </div>
-                        </div>
+                    <div className="flex flex-wrap gap-3">
+                        <Link
+                            href="/events"
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                        >
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            จัดการกิจกรรม
+                        </Link>
+                        <Link
+                            href="/clubs"
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                        >
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            จัดการชมรม
+                        </Link>
                     </div>
+                </div>
 
-                    {/* Student Level Stats */}
-                    <div className="bg-white rounded-2xl shadow-sm p-6 mb-8">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-6">สถิตินักศึกษาแผนกเทคโนโลยีสารสนเทศ</h2>
-                        <div className="space-y-6">
-                            {/* ปวช. */}
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    {/* Total Students */}
+                    <div className="bg-white rounded-xl shadow-sm p-6">
+                        <div className="flex items-center gap-4">
+                            <div className="bg-red-50 p-3 rounded-xl">
+                                <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                            </div>
                             <div>
-                                <h3 className="text-base font-medium text-gray-900 mb-4">ระดับประกาศนียบัตรวิชาชีพ (ปวช.)</h3>
-                                <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
-                                    {stats.students.levels.slice(0, 3).map((level, index) => (
-                                        <div key={index} className="bg-gray-50 rounded-xl p-4 relative overflow-hidden group hover:bg-gray-100 transition-colors duration-200">
-                                            <div className="relative z-10">
-                                                <h4 className="font-medium text-gray-900">{level.name}</h4>
-                                                <p className="text-2xl font-bold text-red-600 mt-2">{level.count}</p>
-                                                <p className="text-sm text-gray-500 mt-1">นักศึกษา</p>
-                                            </div>
-                                            <div className="absolute bottom-0 right-0 w-24 h-24 bg-red-100 rounded-tl-full transform translate-x-8 translate-y-8 group-hover:translate-x-6 group-hover:translate-y-6 transition-transform duration-200"></div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                            
-                            {/* ปวส. */}
-                            <div>
-                                <h3 className="text-base font-medium text-gray-900 mb-4">ระดับประกาศนียบัตรวิชาชีพชั้นสูง (ปวส.)</h3>
-                                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-                                    {/* ปวส.1 */}
-                                    <div>
-                                        <h4 className="text-sm font-medium text-gray-600 mb-3">ชั้นปีที่ 1</h4>
-                                        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-                                            {stats.students.levels.slice(3, 5).map((level, index) => (
-                                                <div key={index} className="bg-gray-50 rounded-xl p-4 relative overflow-hidden group hover:bg-gray-100 transition-colors duration-200">
-                                                    <div className="relative z-10">
-                                                        <h4 className="font-medium text-gray-900">
-                                                            {level.name.includes("ตรง") ? "สายตรง" : "สาย ม.6"}
-                                                        </h4>
-                                                        <p className="text-2xl font-bold text-red-600 mt-2">{level.count}</p>
-                                                        <p className="text-sm text-gray-500 mt-1">นักศึกษา</p>
-                                                    </div>
-                                                    <div className="absolute bottom-0 right-0 w-20 h-20 bg-red-100 rounded-tl-full transform translate-x-6 translate-y-6 group-hover:translate-x-4 group-hover:translate-y-4 transition-transform duration-200"></div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    {/* ปวส.2 */}
-                                    <div>
-                                        <h4 className="text-sm font-medium text-gray-600 mb-3">ชั้นปีที่ 2</h4>
-                                        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-                                            {stats.students.levels.slice(5, 7).map((level, index) => (
-                                                <div key={index} className="bg-gray-50 rounded-xl p-4 relative overflow-hidden group hover:bg-gray-100 transition-colors duration-200">
-                                                    <div className="relative z-10">
-                                                        <h4 className="font-medium text-gray-900">
-                                                            {level.name.includes("ตรง") ? "สายตรง" : "สาย ม.6"}
-                                                        </h4>
-                                                        <p className="text-2xl font-bold text-red-600 mt-2">{level.count}</p>
-                                                        <p className="text-sm text-gray-500 mt-1">นักศึกษา</p>
-                                                    </div>
-                                                    <div className="absolute bottom-0 right-0 w-20 h-20 bg-red-100 rounded-tl-full transform translate-x-6 translate-y-6 group-hover:translate-x-4 group-hover:translate-y-4 transition-transform duration-200"></div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
+                                <p className="text-sm font-medium text-gray-600">นักศึกษาทั้งหมด</p>
+                                <p className="text-2xl font-bold text-gray-900">{stats?.totalStudents || 0}</p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Main Menu Cards */}
-                    <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                        {menuItems.map((item) => (
-                            <Link
-                                key={item.id}
-                                href={item.href}
-                                className="bg-white rounded-2xl shadow-sm p-6 hover:shadow-md transition-all duration-200 group relative overflow-hidden"
-                            >
-                                <div className="relative z-10">
-                                    <div className="flex items-center space-x-4 mb-4">
-                                        <div className="bg-red-50 rounded-xl p-3 group-hover:bg-red-100 transition-colors duration-200">
-                                            <Image
-                                                src={item.icon}
-                                                alt={item.title}
-                                                width={24}
-                                                height={24}
-                                                className="opacity-70 group-hover:opacity-100"
-                                            />
-                                        </div>
-                                        <h2 className="text-lg font-semibold text-gray-900 group-hover:text-red-600">
-                                            {item.title}
-                                        </h2>
-                                    </div>
-                                    <p className="text-gray-600 text-sm mb-4">
-                                        {item.description}
-                                    </p>
-                                    <div className="grid grid-cols-3 gap-4 mb-4">
-                                        {item.stats.map((stat, index) => (
-                                            <div key={index} className="text-center bg-gray-50 rounded-lg p-2 group-hover:bg-gray-100 transition-colors duration-200">
-                                                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                                                <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="flex justify-end">
-                                        <span className="text-red-600 text-sm group-hover:translate-x-1 transition-transform duration-200">
-                                            เข้าสู่หน้า →
-                                        </span>
-                                    </div>
+                    {/* Total Events */}
+                    <div className="bg-white rounded-xl shadow-sm p-6">
+                        <div className="flex items-center gap-4">
+                            <div className="bg-red-50 p-3 rounded-xl">
+                                <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">กิจกรรมทั้งหมด</p>
+                                <p className="text-2xl font-bold text-gray-900">{stats?.totalEvents || 0}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Total Clubs */}
+                    <div className="bg-white rounded-xl shadow-sm p-6">
+                        <div className="flex items-center gap-4">
+                            <div className="bg-red-50 p-3 rounded-xl">
+                                <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">ชมรมทั้งหมด</p>
+                                <p className="text-2xl font-bold text-gray-900">{stats?.totalClubs || 0}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Total Club Weeks */}
+                    <div className="bg-white rounded-xl shadow-sm p-6">
+                        <div className="flex items-center gap-4">
+                            <div className="bg-red-50 p-3 rounded-xl">
+                                <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">สัปดาห์ชมรมทั้งหมด</p>
+                                <p className="text-2xl font-bold text-gray-900">{stats?.totalWeeks || 0}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Recent Events and Clubs */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Recent Events */}
+                    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <div className="p-6 border-b border-gray-100">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">กิจกรรมล่าสุด</h2>
+                                    <p className="text-sm text-gray-500">กิจกรรมที่เพิ่มล่าสุด 5 รายการ</p>
                                 </div>
-                                <div className="absolute bottom-0 right-0 w-32 h-32 bg-red-50 rounded-tl-full transform translate-x-16 translate-y-16 group-hover:translate-x-12 group-hover:translate-y-12 transition-transform duration-200"></div>
-                            </Link>
-                        ))}
+                                <Link
+                                    href="/events"
+                                    className="text-sm font-medium text-red-600 hover:text-red-800"
+                                >
+                                    ดูทั้งหมด
+                                </Link>
+                            </div>
+                        </div>
+                        <div className="divide-y divide-gray-100">
+                            {stats?.recentEvents?.length === 0 ? (
+                                <div className="p-6 text-center text-gray-500">ยังไม่มีกิจกรรม</div>
+                            ) : (
+                                stats?.recentEvents?.map(event => (
+                                    <Link key={event.id} href={`/events/${event.id}`} className="block hover:bg-gray-50">
+                                        <div className="p-6">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <h3 className="text-sm font-medium text-gray-900">{event.title}</h3>
+                                                    <p className="mt-1 text-sm text-gray-500 line-clamp-1">{event.description}</p>
+                                                </div>
+                                                <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                                    event.status === 'upcoming' ? 'bg-blue-50 text-blue-700' :
+                                                    event.status === 'ongoing' ? 'bg-green-50 text-green-700' :
+                                                    'bg-gray-50 text-gray-700'
+                                                }`}>
+                                                    {event.status === 'upcoming' ? 'กำลังจะมาถึง' :
+                                                    event.status === 'ongoing' ? 'กำลังดำเนินการ' :
+                                                    'เสร็จสิ้น'}
+                                                </div>
+                                            </div>
+                                            <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
+                                                <div className="flex items-center gap-1">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                    </svg>
+                                                    {new Date(event.date).toLocaleDateString('th-TH')}
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                    {event.startTime} - {event.endTime}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Link>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Recent Clubs */}
+                    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <div className="p-6 border-b border-gray-100">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">ชมรมล่าสุด</h2>
+                                    <p className="text-sm text-gray-500">ชมรมที่เพิ่มล่าสุด 5 รายการ</p>
+                                </div>
+                                <Link
+                                    href="/clubs"
+                                    className="text-sm font-medium text-red-600 hover:text-red-800"
+                                >
+                                    ดูทั้งหมด
+                                </Link>
+                            </div>
+                        </div>
+                        <div className="divide-y divide-gray-100">
+                            {stats?.recentClubs?.length === 0 ? (
+                                <div className="p-6 text-center text-gray-500">ยังไม่มีชมรม</div>
+                            ) : (
+                                stats?.recentClubs?.map(club => (
+                                    <Link key={club.id} href={`/clubs/${club.id}`} className="block hover:bg-gray-50">
+                                        <div className="p-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="bg-red-50 p-2 rounded-lg">
+                                                    <Image
+                                                        src={club.icon || "/clubs.svg"}
+                                                        alt={club.name}
+                                                        width={32}
+                                                        height={32}
+                                                        className="opacity-75"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-sm font-medium text-gray-900">{club.name}</h3>
+                                                    <p className="mt-1 text-sm text-gray-500 line-clamp-1">{club.description}</p>
+                                                    <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
+                                                        <div className="flex items-center gap-1">
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                                            </svg>
+                                                            {club._count?.members || 0} สมาชิก
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                            </svg>
+                                                            {club._count?.weeks || 0} สัปดาห์
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Link>
+                                ))
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

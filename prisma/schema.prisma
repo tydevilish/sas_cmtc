@@ -24,11 +24,11 @@ model Student {
   prefix     String
   firstName  String
   lastName   String
-  level      String
-  track      String?
+  level      String      // ปวช.1, ปวช.2, ปวช.3, ปวส.1 สายตรง, ปวส.1 สาย ม.6, ปวส.2 สายตรง, ปวส.2 สาย ม.6
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
   attendance Attendance[]
+  clubs      ClubMember[] // ความสัมพันธ์กับชมรมที่เป็นสมาชิก
 }
 
 model Event {
@@ -39,6 +39,7 @@ model Event {
   startTime   String
   endTime     String
   status      String // upcoming, ongoing, completed
+  levels      String[]    // ปวช.1, ปวช.2, ปวช.3, ปวส.1 สายตรง, ปวส.1 สาย ม.6, ปวส.2 สายตรง, ปวส.2 สาย ม.6,  หรือ all
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   attendance  Attendance[]
@@ -53,4 +54,53 @@ model Attendance {
   updatedAt DateTime @updatedAt
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model Club {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  name        String       @unique
+  description String
+  icon        String?     // เพิ่มฟิลด์ icon
+  members     ClubMember[]
+  weeks       Week[]      // เพิ่มความสัมพันธ์กับสัปดาห์
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Week {
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
+  weekNumber  Int             // เลขสัปดาห์
+  club        Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  clubId      String          @db.ObjectId
+  attendance  ClubAttendance[] // ความสัมพันธ์กับการเช็คชื่อ
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([clubId, weekNumber]) // ป้องกันการสร้างสัปดาห์ซ้ำในชมรมเดียวกัน
+}
+
+model ClubAttendance {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  week        Week      @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  weekId      String    @db.ObjectId
+  member      ClubMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId    String    @db.ObjectId
+  status      String    @default("absent") // present, absent, late
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([weekId, memberId]) // ป้องกันการเช็คชื่อซ้ำ
+}
+
+model ClubMember {
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
+  club        Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  clubId      String          @db.ObjectId
+  student     Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId   String          @db.ObjectId
+  attendance  ClubAttendance[] // เพิ่มความสัมพันธ์กับการเช็คชื่อ
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([clubId, studentId]) // ป้องกันการเป็นสมาชิกซ้ำในชมรมเดียวกัน
 }

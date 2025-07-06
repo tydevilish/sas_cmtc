@@ -34,17 +34,12 @@ export async function GET(request) {
     try {
         const { searchParams } = new URL(request.url)
         const level = searchParams.get("level")
-        const track = searchParams.get("track")
         const search = searchParams.get("search")
 
         const where = {}
         
         if (level) {
             where.level = level
-        }
-        
-        if (track) {
-            where.track = track
         }
 
         if (search) {
@@ -80,7 +75,7 @@ export async function POST(request) {
 
     try {
         const body = await request.json()
-        const { studentId, prefix, firstName, lastName, level, track } = body
+        const { studentId, prefix, firstName, lastName, level } = body
 
         if (!studentId || !prefix || !firstName || !lastName || !level) {
             return NextResponse.json(
@@ -100,19 +95,44 @@ export async function POST(request) {
             )
         }
 
+        // สร้างนักศึกษาใหม่
         const student = await prisma.student.create({
             data: {
                 studentId,
                 prefix,
                 firstName,
                 lastName,
-                level,
-                track: track || null
+                level
             }
         })
 
+        // ค้นหากิจกรรมที่เกี่ยวข้องกับระดับชั้นของนักศึกษา
+        const relevantEvents = await prisma.event.findMany({
+            where: {
+                OR: [
+                    { levels: { has: level } },
+                    { levels: { has: "all" } }
+                ],
+                status: {
+                    not: "completed" // เฉพาะกิจกรรมที่ยังไม่เสร็จสิ้น
+                }
+            }
+        })
+
+        // สร้าง attendance records สำหรับกิจกรรมที่เกี่ยวข้อง
+        if (relevantEvents.length > 0) {
+            await prisma.attendance.createMany({
+                data: relevantEvents.map(event => ({
+                    eventId: event.id,
+                    studentId: student.id,
+                    status: "absent"
+                }))
+            })
+        }
+
         return NextResponse.json({ student })
     } catch (err) {
+        console.error("Error creating student:", err)
         return NextResponse.json(
             { message: "เกิดข้อผิดพลาดในการเพิ่มนักศึกษา" },
             { status: 500 }
@@ -129,7 +149,7 @@ export async function PUT(request) {
 
     try {
         const body = await request.json()
-        const { id, studentId, prefix, firstName, lastName, level, track } = body
+        const { id, studentId, prefix, firstName, lastName, level } = body
 
         if (!id || !studentId || !prefix || !firstName || !lastName || !level) {
             return NextResponse.json(
@@ -152,6 +172,12 @@ export async function PUT(request) {
             )
         }
 
+        // ดึงข้อมูลนักศึกษาเดิม
+        const currentStudent = await prisma.student.findUnique({
+            where: { id }
+        })
+
+        // อัพเดทข้อมูลนักศึกษา
         const student = await prisma.student.update({
             where: { id },
             data: {
@@ -159,13 +185,65 @@ export async function PUT(request) {
                 prefix,
                 firstName,
                 lastName,
-                level,
-                track: track || null
+                level
             }
         })
 
+        // ถ้าระดับชั้นมีการเปลี่ยนแปลง
+        if (currentStudent.level !== level) {
+            // ลบ attendance records ของกิจกรรมที่ไม่เกี่ยวข้องกับระดับชั้นใหม่
+            await prisma.attendance.deleteMany({
+                where: {
+                    studentId: id,
+                    event: {
+                        AND: [
+                            { status: { not: "completed" } },
+                            {
+                                NOT: {
+                                    OR: [
+                                        { levels: { has: level } },
+                                        { levels: { has: "all" } }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                }
+            })
+
+            // ค้นหากิจกรรมใหม่ที่เกี่ยวข้องกับระดับชั้นใหม่
+            const newEvents = await prisma.event.findMany({
+                where: {
+                    OR: [
+                        { levels: { has: level } },
+                        { levels: { has: "all" } }
+                    ],
+                    status: { not: "completed" },
+                    NOT: {
+                        attendance: {
+                            some: {
+                                studentId: id
+                            }
+                        }
+                    }
+                }
+            })
+
+            // สร้าง attendance records สำหรับกิจกรรมใหม่
+            if (newEvents.length > 0) {
+                await prisma.attendance.createMany({
+                    data: newEvents.map(event => ({
+                        eventId: event.id,
+                        studentId: id,
+                        status: "absent"
+                    }))
+                })
+            }
+        }
+
         return NextResponse.json({ student })
     } catch (err) {
+        console.error("Error updating student:", err)
         return NextResponse.json(
             { message: "เกิดข้อผิดพลาดในการแก้ไขข้อมูล" },
             { status: 500 }

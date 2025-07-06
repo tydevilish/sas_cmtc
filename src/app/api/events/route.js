@@ -34,33 +34,16 @@ export async function GET(request) {
 
     try {
         const { searchParams } = new URL(request.url)
-        const id = searchParams.get("id")
         const search = searchParams.get("search")
+        const id = searchParams.get("id")
 
-        // ถ้ามี id ให้ดึงข้อมูลกิจกรรมเดียวพร้อมข้อมูลการเข้าร่วม
         if (id) {
             const event = await prisma.event.findUnique({
-                where: { id },
-                include: {
-                    attendance: {
-                        include: {
-                            student: true
-                        }
-                    }
-                }
+                where: { id }
             })
-
-            if (!event) {
-                return NextResponse.json(
-                    { message: "ไม่พบกิจกรรมที่ต้องการ" },
-                    { status: 404 }
-                )
-            }
-
             return NextResponse.json({ event })
         }
 
-        // ถ้าไม่มี id ให้ดึงรายการกิจกรรมทั้งหมด
         const where = {}
         if (search) {
             where.OR = [
@@ -78,6 +61,7 @@ export async function GET(request) {
 
         return NextResponse.json({ events })
     } catch (err) {
+        console.error("Error fetching events:", err)
         return NextResponse.json(
             { message: "เกิดข้อผิดพลาดในการดึงข้อมูล" },
             { status: 500 }
@@ -94,15 +78,16 @@ export async function POST(request) {
 
     try {
         const body = await request.json()
-        const { title, description, date, startTime, endTime } = body
+        const { title, description, date, startTime, endTime, levels } = body
 
-        if (!title || !description || !date || !startTime || !endTime) {
+        if (!title || !description || !date || !startTime || !endTime || !levels) {
             return NextResponse.json(
                 { message: "กรุณากรอกข้อมูลให้ครบถ้วน" },
                 { status: 400 }
             )
         }
 
+        // สร้างกิจกรรม
         const event = await prisma.event.create({
             data: {
                 title,
@@ -110,22 +95,38 @@ export async function POST(request) {
                 date: new Date(date),
                 startTime,
                 endTime,
+                levels: levels.includes("all") ? ["all"] : levels,
                 status: "upcoming"
             }
         })
 
-        // สร้าง attendance records สำหรับนักศึกษาทุกคน
-        const students = await prisma.student.findMany()
-        await prisma.attendance.createMany({
-            data: students.map(student => ({
-                eventId: event.id,
-                studentId: student.id,
-                status: "absent"
-            }))
-        })
+        // ค้นหานักเรียนตามระดับชั้นที่เลือก
+        let whereCondition = {}
+        
+        if (!levels.includes("all")) {
+            whereCondition = {
+                level: {
+                    in: levels
+                }
+            }
+        }
+
+        const students = await prisma.student.findMany({ where: whereCondition })
+
+        // สร้าง attendance records สำหรับนักเรียนที่พบ
+        if (students.length > 0) {
+            await prisma.attendance.createMany({
+                data: students.map(student => ({
+                    eventId: event.id,
+                    studentId: student.id,
+                    status: "absent"
+                }))
+            })
+        }
 
         return NextResponse.json({ event })
     } catch (err) {
+        console.error("Error creating event:", err)
         return NextResponse.json(
             { message: "เกิดข้อผิดพลาดในการสร้างกิจกรรม" },
             { status: 500 }
@@ -133,7 +134,7 @@ export async function POST(request) {
     }
 }
 
-// PUT /api/events - แก้ไขข้อมูลกิจกรรม
+// PUT /api/events - อัพเดทข้อมูลกิจกรรม
 export async function PUT(request) {
     const authUser = await checkAuth()
     if (!authUser) {
@@ -142,15 +143,16 @@ export async function PUT(request) {
 
     try {
         const body = await request.json()
-        const { id, title, description, date, startTime, endTime, status } = body
+        const { id, title, description, date, startTime, endTime, levels } = body
 
-        if (!id || !title || !description || !date || !startTime || !endTime) {
+        if (!id || !title || !description || !date || !startTime || !endTime || !levels) {
             return NextResponse.json(
                 { message: "กรุณากรอกข้อมูลให้ครบถ้วน" },
                 { status: 400 }
             )
         }
 
+        // อัพเดทข้อมูลกิจกรรม
         const event = await prisma.event.update({
             where: { id },
             data: {
@@ -159,14 +161,44 @@ export async function PUT(request) {
                 date: new Date(date),
                 startTime,
                 endTime,
-                status: status || "upcoming"
+                levels: levels.includes("all") ? ["all"] : levels
             }
         })
 
+        // ลบ attendance records เก่า
+        await prisma.attendance.deleteMany({
+            where: { eventId: id }
+        })
+
+        // ค้นหานักเรียนตามระดับชั้นที่เลือก
+        let whereCondition = {}
+        
+        if (!levels.includes("all")) {
+            whereCondition = {
+                level: {
+                    in: levels
+                }
+            }
+        }
+
+        const students = await prisma.student.findMany({ where: whereCondition })
+
+        // สร้าง attendance records ใหม่สำหรับนักเรียนที่พบ
+        if (students.length > 0) {
+            await prisma.attendance.createMany({
+                data: students.map(student => ({
+                    eventId: event.id,
+                    studentId: student.id,
+                    status: "absent"
+                }))
+            })
+        }
+
         return NextResponse.json({ event })
     } catch (err) {
+        console.error("Error updating event:", err)
         return NextResponse.json(
-            { message: "เกิดข้อผิดพลาดในการแก้ไขข้อมูล" },
+            { message: "เกิดข้อผิดพลาดในการอัพเดทข้อมูล" },
             { status: 500 }
         )
     }
@@ -196,6 +228,7 @@ export async function DELETE(request) {
 
         return NextResponse.json({ message: "ลบกิจกรรมเรียบร้อยแล้ว" })
     } catch (err) {
+        console.error("Error deleting event:", err)
         return NextResponse.json(
             { message: "เกิดข้อผิดพลาดในการลบกิจกรรม" },
             { status: 500 }

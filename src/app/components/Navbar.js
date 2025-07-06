@@ -18,6 +18,13 @@ export default function Navbar({ user, onLogout }) {
             description: 'จัดการข้อมูลกิจกรรมต่างๆ'
         },
         {
+            id: 'clubs',
+            title: 'เช็คชื่อชมรมวิชาชีพ',
+            icon: '/clubs.svg',
+            href: '/clubs',
+            description: 'จัดการข้อมูลกิจกรรมต่างๆ'
+        },
+        {
             id: 'activities',
             title: 'จัดการกิจกรรม',
             icon: '/event.svg',
@@ -59,7 +66,7 @@ export default function Navbar({ user, onLogout }) {
                                 className="cursor-pointer"
                             />
                         </Link>
-                        <span className="ml-8 text-gray-700 font-medium hidden sm:block">
+                        <span className="ml-4 text-gray-700 font-medium hidden sm:block py-1 px-3 bg-gray-200 rounded-lg">
                             {user?.username}
                         </span>
                     </div>
@@ -71,8 +78,7 @@ export default function Navbar({ user, onLogout }) {
                                 key={item.id}
                                 href={item.href}
                                 className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200
-                                    hover:bg-gray-50 text-gray-600 hover:text-red-600 ${
-                                        pathname === item.href ? 'bg-red-50 text-red-600' : ''
+                                    hover:bg-gray-50 text-gray-600 hover:text-red-600 ${pathname === item.href ? 'bg-red-50 text-red-600' : ''
                                     }`}
                             >
                                 <Image
@@ -164,9 +170,8 @@ export default function Navbar({ user, onLogout }) {
                             key={item.id}
                             href={item.href}
                             onClick={() => setIsOpen(false)}
-                            className={`flex items-center space-x-3 px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:bg-gray-50 hover:text-red-600 transition-colors duration-200 ${
-                                pathname === item.href ? 'bg-red-50 text-red-600' : ''
-                            }`}
+                            className={`flex items-center space-x-3 px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:bg-gray-50 hover:text-red-600 transition-colors duration-200 ${pathname === item.href ? 'bg-red-50 text-red-600' : ''
+                                }`}
                         >
                             <Image
                                 src={item.icon}
@@ -179,7 +184,6 @@ export default function Navbar({ user, onLogout }) {
                         </Link>
                     ))}
 
-                    {/* Mobile Logout Button */}
                     <button
                         onClick={onLogout}
                         className="flex items-center space-x-3 px-3 py-2 rounded-md text-base font-medium text-white hover:text-gray-100 hover:bg-red-600 bg-red-500 w-full transition-colors duration-200 cursor-pointer"

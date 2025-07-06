@@ -275,9 +275,7 @@ export default function Users() {
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{u.username}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{u.name || "-"}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                    u.role === "admin" ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"
-                                                }`}>
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-md font-medium text-gray-600`}>
                                                     {u.role === "admin" ? "ผู้ดูแลระบบ" : "อาจารย์"}
                                                 </span>
                                             </td>
